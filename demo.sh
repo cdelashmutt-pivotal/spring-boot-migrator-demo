@@ -2,26 +2,30 @@
 
 #set -x
 
-. ./helper.sh
+vendir sync
+. ./vendir/demo-magic/demo-magic.sh
 export TYPE_SPEED=100
 export DEMO_PROMPT="${GREEN}➜ ${CYAN}\W ${COLOR_RESET}"
 TEMP_DIR=upgrade-example
+PROMPT_TIMEOUT=5
 
 function talkingPoint() {
   wait
   clear
 }
 
+# Initialize SDKMAN and install required Java versions
 function initSDKman() {
-	if [[ -f "$SDKMAN_DIR/bin/sdkman-init.sh" ]]; then
-   	  source "$SDKMAN_DIR/bin/sdkman-init.sh"  
+  local sdkman_init="${SDKMAN_DIR:-$HOME/.sdkman}/bin/sdkman-init.sh"
+  if [[ -f "$sdkman_init" ]]; then
+    source "$sdkman_init"
   else
-      echo "SDKMAN_DIR is not set, using default location"
-  	  source "$HOME/.sdkman/bin/sdkman-init.sh"  
-	fi
-	sdk install java 8.0.382-librca
-	sdk install java 17.0.8-graalce
-  sdk install java 21-graalce
+    echo "SDKMAN not found. Please install SDKMAN first."
+    exit 1
+  fi
+  sdk update
+  sdk install java 8.0.392-librca
+  sdk install java 21.0.1-librca
 }
 
 function init {
@@ -31,146 +35,82 @@ function init {
   clear
 }
 
+# Switch to Java 8 and display version
 function useJava8 {
-  echo "#### Use Java 8, this is for educational purposes only"
-  echo "#### Please, do not try this at home"
-  echo ""
-  pei "sdk use java 8.0.382-librca"
+  displayMessage "Use Java 8, this is for educational purposes only, don't do this at home! (I have jokes.)"
+  pei "sdk use java 8.0.392-librca"
   pei "java -version" 
 }
 
 function useJava21 {
-  echo "#### Because we have upgraded to Spring Boot 3"
-  echo "#### We need to use, at least, Java 17"
   echo "#### Java 21 is GA so lets switch to Java 21"
   echo ""
-  pei "sdk use java 21-graalce"
+  pei "sdk use java 21.0.1-librca"
   pei "java -version"
 }
 
-function createAppWithInitializr {
-  echo "#### Create a simple application with Spring Boot version 2.7.3"
-  echo "#### Use the Spring Initializr (start.spring.io) with 'curl'"
-  echo ""
-  pei "export SPRING_BOOT_VERSION=2.7.3"
-  pei "export DEPENDENCIES=web,actuator"
-  pei "curl https://start.spring.io/starter.tgz -d dependencies=$DEPENDENCIES -d javaVersion=8 -d bootVersion=$SPRING_BOOT_VERSION -d type=maven-project | tar -xzf - || exit"
-  pei "git init"
-  pei "git add . && git commit -m 'start'"
+# Clone a simple Spring Boot application
+function cloneApp {
+  displayMessage "Clone a Spring Boot 2.7.0 application."
+  pei "git clone https://github.com/dashaun/hello-spring-boot-2-7.git ./"
 }
 
+# Start the Spring Boot application
 function springBootStart {
-  echo "#### Start the application with the Spring Boot Maven Plugin"
-  echo "#### The -q options is for quiet mode"
-  echo ""
-  pei "./mvnw -q clean package spring-boot:start -DskipTests 2>&1 | tee '$1' &"
+  displayMessage "Start the Spring Boot application"
+  pei "./mvnw -q clean package spring-boot:start -Dfork=true -DskipTests 2>&1 | tee '$1' &"
+  PROMPT_TIMEOUT=15
 }
 
+# Stop the Spring Boot application
 function springBootStop {
-  echo "#### We have the startup time and the memory footprint"
-  echo "#### Stop the application using the Spring Boot Maven Plugin"
-  echo ""
-  pei "./mvnw spring-boot:stop -Dspring-boot.stop.fork"
+  displayMessage "Stop the Spring Boot application"
+  pei "./mvnw spring-boot:stop -Dfork=true"
 }
 
+# Check the health of the application
 function validateApp {
-  echo "#### Check to actuator endpoint to see if it's up and running:"
-  echo ""
-  sleep 1
+  displayMessage "Check application health"
   pei "http :8080/actuator/health"
+  PROMPT_TIMEOUT=5
 }
 
+# Display memory usage of the application
 function showMemoryUsage {
-  echo "#### Use the process ID: $1"
-  echo "#### to see how much memory its using"
-  echo ""
-  RSS=$(ps -o rss "$1" | tail -n1)
-  RSS=$(bc <<< "scale=1; ${RSS}/1024")
-  echo "The process was using ${RSS} megabytes"
-  echo "${RSS}" >> "$2"
+  local pid=$1
+  local log_file=$2
+  local rss=$(ps -o rss= "$pid" | tail -n1)
+  local mem_usage=$(bc <<< "scale=1; ${rss}/1024")
+  echo "The process was using ${mem_usage} megabytes"
+  echo "${mem_usage}" >> "$log_file"
 }
 
 function rewriteApplication {
   echo "#### Use the Spring Boot Migrator"
   echo "#### To upgrade to the latest version of Spring Boot"
   echo ""
-  pei "java -jar --add-opens 'java.base/sun.nio.ch=ALL-UNNAMED' --add-opens 'java.base/java.io=ALL-UNNAMED'  ../spring-boot-upgrade.jar ./"
+  pei "java -jar --add-opens 'java.base/sun.nio.ch=ALL-UNNAMED' --add-opens 'java.base/java.io=ALL-UNNAMED'  ../vendir/spring-boot-migrator/spring-boot-upgrade.jar ./"
 }
 
-function buildNative {
-  echo "#### Spring Framework 6 and Spring Boot 3 introduced Ahead of Time (AOT) Processing"
-  echo "#### Use the native profile for AOT Processing"
-  echo "#### It uses GraalVM to generate a statically-linked native binary"
+# Display a message with a header
+function displayMessage() {
+  echo "#### $1"
   echo ""
-  pei "./mvnw -Pnative native:compile"
-}
-
-function startNative {
-  echo "#### Start the native image"
-  echo ""
-  pei "./target/demo 2>&1 | tee nativeWith3.1.log &"
-}
-
-function stopNative {
-  echo "#### Stop the 'native image"
-  echo ""
-  pei "export NPID=$(pgrep demo)"
-  pei "kill -9 $NPID"
-}
-
-function buildOCI {
-  echo "#### Build an OCI Image using the JVM"
-  echo "#### Build an OCI Image using GraalVM"
-  echo "#### Tag the multi-architecture 'dashaun/builder:tiny' for use, instead of the default"
-  pei ""
-  pei "docker pull dashaun/builder:tiny && docker tag dashaun/builder:tiny paketobuildpacks/builder:tiny && docker tag dashaun/builder:tiny paketobuildpacks/builder:base"
-  pei "./mvnw clean spring-boot:build-image -Dspring-boot.build-image.imageName=demo:0.0.1-JVM -Dspring-boot.build-image.createdDate=now"
-  pei "./mvnw clean -Pnative spring-boot:build-image -Dspring-boot.build-image.imageName=demo:0.0.1-Native -Dspring-boot.build-image.createdDate=now"
-  echo ""
-}
-
-function statsSoFar {
-  echo "#### What did we see?"
-  echo ""
-  echo "Spring Boot 2.6 with Java 8"
-  grep -o 'Started DemoApplication in .*' < java8with2.6.log
-  echo "The process was using $(cat java8with2.6.log2) megabytes"
-  echo ""
-  echo ""
-  echo "Spring Boot 3.1 with Java 21"
-  grep -o 'Started DemoApplication in .*' < java21with3.1.log
-  echo "The process was using $(cat java21with3.1.log2) megabytes"
-  echo ""
-  echo ""
-  echo "Spring Boot 3.1 with AOT processing, native image"
-  grep -o 'Started DemoApplication in .*' < nativeWith3.1.log
-  echo "The process was using $(cat nativeWith3.1.log2) megabytes"
-  echo ""
-  echo ""
-  MEM1="$(grep '\S' java8with2.6.log2)"
-  MEM2="$(grep '\S' java21with3.1.log2)"
-  MEM3="$(grep '\S' nativeWith3.1.log2)"
-  echo ""
-  echo "The Spring Boot 3.1 with Java 21 version is using $(bc <<< "scale=2; ${MEM2}/${MEM1}*100")% of the original footprint"
-  echo "The Spring Boot 3.1 with AOT processing version is using $(bc <<< "scale=2; ${MEM3}/${MEM1}*100")% of the original footprint" 
-}
-
-function imageStats {
-  pei "docker images | grep demo"
 }
 
 initSDKman
 init
-useJava21
+useJava8
 talkingPoint
-createAppWithInitializr
+cloneApp
 talkingPoint
-springBootStart java8with2.6.log
+springBootStart java8with2.7.log
 talkingPoint
 validateApp
 talkingPoint
-showMemoryUsage "$(jps | grep 'DemoApplication' | cut -d ' ' -f 1)" java8with2.6.log2
+showMemoryUsage "$(jps | grep 'HelloSpringApplication' | cut -d ' ' -f 1)" java8with2.7.log2
 talkingPoint
 springBootStop
 talkingPoint
+useJava21
 rewriteApplication

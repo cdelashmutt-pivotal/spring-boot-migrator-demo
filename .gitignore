@@ -1,2 +1,6 @@
-spring-boot-upgrade.jar
 upgrade-example
+vendir
+vendir/demo-magic
+vendir/spring-boot-migrator
+.idea
+vendir.lock.yml

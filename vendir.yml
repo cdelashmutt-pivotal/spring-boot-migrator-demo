@@ -1,0 +1,20 @@
+apiVersion: vendir.k14s.io/v1alpha1
+kind: Config
+minimumRequiredVersion: 0.37.0
+directories:
+
+  #! Product release files
+  - path: vendir/demo-magic
+    contents:
+      - path: .
+        git:
+          url: https://github.com/paxtonhare/demo-magic.git
+          ref: master
+  - path: vendir/spring-boot-migrator
+    contents:
+      - path: .
+        githubRelease:
+          slug: spring-projects-experimental/spring-boot-migrator
+          tag: 0.15.0
+          assetNames: ["spring-boot-upgrade.jar"]
+          disableAutoChecksumValidation: true
